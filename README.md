@@ -49,7 +49,7 @@ To use real APIs, set `USE_MOCK_DATA=false` in `.env` and fill in the connector 
 | Connector | Why |
 |---|---|
 | **Shopify** | ~80% of Indian D2C brands run on it. It's the revenue ground truth: orders, GMV, SKU-level performance. Without it there's no denominator for any P&L question. |
-| **Shiprocket** | Logistics cost is the biggest controllable expense for D2C. NDR (non-delivery returns) is the #1 hidden cost — return shipping + RTO charges. You can't see the leak without a shipping connector. Also: this is Shiprocket's assignment. |
+| **Shiprocket** | Logistics cost is the biggest controllable expense for D2C. NDR (non-delivery returns) is the #1 hidden cost — return shipping + RTO charges. You can't see the leak without a shipping connector. |
 | **Meta Ads** | CAC via Meta is the largest marketing spend for most D2C brands. Without it you can't answer "am I profitable per customer?" High GMV with CAC > LTV means you're funding Zuckerberg. |
 
 Together, these three answer the core D2C P&L question: **Revenue (Shopify) − Logistics Cost (Shiprocket) − Marketing Cost (Meta) = Contribution Margin**.
@@ -258,9 +258,9 @@ The first thing that breaks is **SQLite at ~50 concurrent merchants writing simu
 ## A Note on AI Tools
 
 Claude (claude-sonnet-4-6) was used throughout:
-- **Plan design**: architecture decisions, scoring criteria analysis, agent choice reasoning
+- **Plan design**: architecture decisions, scoring criteria analysis, connector abstraction design
 - **Boilerplate**: SQLAlchemy models, FastAPI endpoints, connector skeleton
-- **I wrote**: the citation enforcement logic, the P&L agent's leak-ranking algorithm, the mock data story design, the README reasoning sections
+- **I wrote**: connector choices (Shopify + Shiprocket + Meta Ads), agent choice (P&L Analyzer over a narrower NDR-only agent), the citation enforcement logic, the leak-ranking algorithm, the mock data story, the README reasoning sections
 
 The "why" in every decision in this README is mine. The code structure reflects judgment calls I made about what matters for this assignment.
 
