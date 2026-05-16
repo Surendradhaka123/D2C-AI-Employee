@@ -56,7 +56,7 @@ def cli() -> None:
     elif cmd == "agent" and len(args) >= 3 and args[1] == "run" and args[2] == "pl":
         from agents.pl_analyzer import PLAnalyzerAgent
         log = PLAnalyzerAgent().run(merchant_id)
-        print(json.dumps(log.to_dict(), indent=2))
+        print(json.dumps(log.to_dict(), indent=2, ensure_ascii=False))
 
     else:
         print(f"Unknown command: {' '.join(args)}")

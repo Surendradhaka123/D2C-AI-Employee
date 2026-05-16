@@ -69,7 +69,7 @@ def chat(
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": json.dumps(result),
+                    "content": json.dumps(result, ensure_ascii=False),
                 })
 
             # Append assistant turn + tool results to history
