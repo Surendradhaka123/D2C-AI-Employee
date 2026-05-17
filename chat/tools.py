@@ -11,6 +11,8 @@ from db.repository import Repository
 from db.freshness import refresh_if_stale, _METRIC_SOURCES
 
 
+# merchant_id is removed from all tool schemas — it is a session variable injected
+# by handle_tool() so the LLM never needs to know or supply it.
 TOOL_DEFINITIONS = [
     {
         "name": "query_orders",
@@ -18,28 +20,26 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string", "description": "Merchant identifier"},
                 "status": {"type": "string", "description": "Filter by status: paid, refunded, cancelled, pending"},
-                "date_from": {"type": "string", "description": "ISO date string, e.g. 2026-04-01"},
-                "date_to": {"type": "string", "description": "ISO date string, e.g. 2026-05-14"},
+                "date_from": {"type": "string", "description": "ISO date string e.g. 2026-04-01"},
+                "date_to": {"type": "string", "description": "ISO date string e.g. 2026-05-17"},
                 "limit": {"type": "integer", "description": "Max rows to return (default 50)"},
             },
-            "required": ["merchant_id"],
+            "required": [],
         },
     },
     {
         "name": "query_shipments",
-        "description": "Query shipment data from Shiprocket. Includes NDR (Non-Delivery Report) status, courier, pincode.",
+        "description": "Query shipment data from Shiprocket. Includes NDR status, courier, pincode.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "courier": {"type": "string", "description": "Filter by courier name e.g. DTDC, Delhivery, BlueDart"},
                 "is_ndr": {"type": "boolean", "description": "True to return only NDR shipments"},
                 "pincode": {"type": "string", "description": "Filter by delivery pincode"},
                 "limit": {"type": "integer", "description": "Max rows (default 50)"},
             },
-            "required": ["merchant_id"],
+            "required": [],
         },
     },
     {
@@ -48,45 +48,40 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "campaign_name": {"type": "string", "description": "Partial campaign name filter"},
                 "date_from": {"type": "string", "description": "YYYY-MM-DD"},
                 "date_to": {"type": "string", "description": "YYYY-MM-DD"},
             },
-            "required": ["merchant_id"],
+            "required": [],
         },
     },
     {
         "name": "compute_metric",
-        "description": (
-            "Compute a pre-defined aggregate metric. "
-            "Available metrics: total_revenue, total_ad_spend, ndr_rate, avg_shipping_cost, roas, cac, orders_by_status"
-        ),
+        "description": "Compute a pre-defined aggregate metric.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "metric": {
                     "type": "string",
                     "enum": ["total_revenue", "total_ad_spend", "ndr_rate", "avg_shipping_cost", "roas", "cac", "orders_by_status"],
+                    "description": "Metric to compute",
                 },
             },
-            "required": ["merchant_id", "metric"],
+            "required": ["metric"],
         },
     },
     {
         "name": "run_pl_analyzer",
         "description": (
-            "Run the D2C P&L Analyzer agent. Computes Revenue (Shopify) - Logistics Cost (Shiprocket) "
-            "- Marketing Cost (Meta Ads) = Contribution Margin. Returns ranked profit leaks and recommendations."
+            "Run the D2C P&L Analyzer. Computes Revenue (Shopify) - Logistics (Shiprocket) "
+            "- Marketing (Meta Ads) = Contribution Margin. Returns ranked profit leaks."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "period_days": {"type": "integer", "description": "Lookback period in days (default 30)"},
             },
-            "required": ["merchant_id"],
+            "required": [],
         },
     },
     {
@@ -95,27 +90,25 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "entity_type": {"type": "string", "enum": ["order", "shipment", "campaign"]},
                 "entity_id": {"type": "string", "description": "The row_id from a previous query result"},
                 "note": {"type": "string"},
-                "tag": {"type": "string", "description": "Optional short tag e.g. 'high-value', 'review'"},
+                "tag": {"type": "string", "description": "Optional short tag e.g. high-value"},
             },
-            "required": ["merchant_id", "entity_type", "entity_id", "note"],
+            "required": ["entity_type", "entity_id", "note"],
         },
     },
     {
         "name": "flag_ndr_action",
-        "description": "Flag a shipment NDR with an action decision. Stored locally — does not trigger Shiprocket.",
+        "description": "Flag a shipment NDR with an action. Stored locally — does not trigger Shiprocket.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "shipment_id": {"type": "string", "description": "row_id from a shipments query"},
                 "action": {"type": "string", "enum": ["reattempt", "rto", "hold"]},
                 "reason": {"type": "string"},
             },
-            "required": ["merchant_id", "shipment_id", "action", "reason"],
+            "required": ["shipment_id", "action", "reason"],
         },
     },
     {
@@ -124,12 +117,11 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "merchant_id": {"type": "string"},
                 "campaign_id": {"type": "string"},
                 "recommended_budget": {"type": "number", "description": "Recommended daily budget in INR"},
                 "reason": {"type": "string"},
             },
-            "required": ["merchant_id", "campaign_id", "recommended_budget", "reason"],
+            "required": ["campaign_id", "recommended_budget", "reason"],
         },
     },
 ]
@@ -156,10 +148,9 @@ def _coerce(inputs: dict, name: str) -> dict:
     return coerced
 
 
-def handle_tool(name: str, inputs: dict) -> dict:
+def handle_tool(name: str, inputs: dict, merchant_id: str = "") -> dict:
     """Dispatch a tool call to the appropriate handler. Returns serializable dict."""
     inputs = _coerce(inputs, name)
-    merchant_id = inputs.get("merchant_id", "")
 
     with get_session() as session:
         repo = Repository(session)

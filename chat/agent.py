@@ -42,7 +42,7 @@ def chat(
             for tc in response.tool_calls:
                 tool_call_count += 1
                 try:
-                    result = handle_tool(tc.name, {**tc.inputs, "merchant_id": tc.inputs.get("merchant_id", merchant_id)})
+                    result = handle_tool(tc.name, tc.inputs, merchant_id=merchant_id)
                 except Exception as exc:
                     result = {"error": str(exc)}
 

@@ -3,7 +3,7 @@ import os
 
 from chat.providers.base import BaseProvider, ProviderResponse, ToolCall
 
-MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+MODEL = os.getenv("GROQ_MODEL", "llama3-groq-70b-8192-tool-use-preview")
 
 
 def _to_openai_tools(anthropic_tools: list[dict]) -> list[dict]:
