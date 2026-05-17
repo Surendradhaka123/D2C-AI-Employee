@@ -3,7 +3,7 @@ import os
 
 from chat.providers.base import BaseProvider, ProviderResponse, ToolCall
 
-MODEL = os.getenv("GROQ_MODEL", "llama3-groq-70b-8192-tool-use-preview")
+MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3-32b")
 
 
 def _to_openai_tools(anthropic_tools: list[dict]) -> list[dict]:
@@ -29,7 +29,6 @@ def _to_openai_tools(anthropic_tools: list[dict]) -> list[dict]:
 class GroqProvider(BaseProvider):
     """
     Uses Groq's OpenAI-compatible API.
-    Free plan models with tool use: llama-3.3-70b-versatile, llama3-groq-70b-8192-tool-use-preview
 
     System prompt is injected as the first message (role="system") since
     Groq follows the OpenAI messages format, not Anthropic's separate system param.
@@ -75,7 +74,6 @@ class GroqProvider(BaseProvider):
         )
 
     def build_tool_result_message(self, response, raw_message, tool_results):
-        # Reconstruct the assistant message with tool_calls attached
         assistant_msg = {
             "role": "assistant",
             "content": raw_message.content or "",

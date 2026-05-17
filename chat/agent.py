@@ -13,6 +13,7 @@ from chat.tools import TOOL_DEFINITIONS, handle_tool
 from chat.citations import SYSTEM_PROMPT, enforce_citations, CITATION_RETRY_PROMPT
 
 MAX_CITATION_RETRIES = 2
+MAX_PROVIDER_RETRIES = 2
 
 
 def chat(
@@ -25,6 +26,8 @@ def chat(
       {"response": str, "tool_calls": int, "citation_retries": int, "provider": str}
     or on grounding failure:
       {"error": "grounding_failure", "message": str}
+    or on provider failure:
+      {"error": "provider_failure", "message": str}
     """
     provider = get_provider()
     messages = list(history or [])
@@ -32,10 +35,30 @@ def chat(
 
     tool_call_count = 0
     citation_retry_count = 0
+    provider_error_count = 0
 
     # ── Tool-use loop ────────────────────────────────────────────────────────
     while True:
-        response = provider.complete(messages, TOOL_DEFINITIONS, SYSTEM_PROMPT)
+        # Protect provider.complete() — if the LLM API fails, feed the error
+        # back as a user message so the loop can retry without crashing.
+        try:
+            response = provider.complete(messages, TOOL_DEFINITIONS, SYSTEM_PROMPT)
+            provider_error_count = 0  # reset on success
+        except Exception as exc:
+            provider_error_count += 1
+            if provider_error_count > MAX_PROVIDER_RETRIES:
+                return {
+                    "error": "provider_failure",
+                    "message": f"LLM API failed {MAX_PROVIDER_RETRIES} times: {exc}",
+                }
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"[system: the previous request to the LLM API failed with: {exc}. "
+                    "Please try again.]"
+                ),
+            })
+            continue
 
         if response.wants_tool_use and response.tool_calls:
             tool_results = []
@@ -44,8 +67,17 @@ def chat(
                 try:
                     result = handle_tool(tc.name, tc.inputs, merchant_id=merchant_id)
                 except Exception as exc:
-                    result = {"error": str(exc)}
-
+                    # Structured error so the LLM sees what failed and can retry
+                    result = {
+                        "status": "tool_error",
+                        "tool": tc.name,
+                        "error": str(exc),
+                        "hint": (
+                            "This tool call failed. Check the parameters and retry "
+                            "with corrected inputs. If the error persists, report it "
+                            "to the user."
+                        ),
+                    }
                 tool_results.append({
                     "tool_call_id": tc.id,
                     "content": json.dumps(result, ensure_ascii=False),
