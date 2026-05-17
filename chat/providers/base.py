@@ -19,6 +19,7 @@ class ProviderResponse:
     text: str
     tool_calls: list[ToolCall] = field(default_factory=list)
     wants_tool_use: bool = False   # True when provider returned tool calls
+    _raw: object = field(default=None, repr=False)  # provider-specific raw response
 
 
 class BaseProvider(ABC):

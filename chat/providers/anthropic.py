@@ -1,7 +1,7 @@
 import os
 import anthropic
 
-from chat.providers.base import BaseProvider, ProviderResponse, ToolCall
+from chat.providers.base import BaseProvider, ProviderResponse, ToolCall  # noqa: F401
 
 MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
@@ -59,11 +59,3 @@ class AnthropicProvider(BaseProvider):
         ]
 
 
-# Patch ProviderResponse to carry raw content without polluting the dataclass
-_orig_init = ProviderResponse.__init__
-
-def _patched_init(self, *args, _raw=None, **kwargs):
-    _orig_init(self, *args, **kwargs)
-    self._raw = _raw
-
-ProviderResponse.__init__ = _patched_init
