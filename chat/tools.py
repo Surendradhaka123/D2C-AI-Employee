@@ -8,6 +8,7 @@ Every handler returns {"data": [...], "citations": [...]} so Claude can cite its
 from datetime import datetime
 from db.session import get_session
 from db.repository import Repository
+from db.freshness import refresh_if_stale, _METRIC_SOURCES
 
 
 TOOL_DEFINITIONS = [
@@ -142,6 +143,7 @@ def handle_tool(name: str, inputs: dict) -> dict:
         repo = Repository(session)
 
         if name == "query_orders":
+            refresh_if_stale(merchant_id, "shopify")
             date_from = _parse_date(inputs.get("date_from"))
             date_to = _parse_date(inputs.get("date_to"))
             return repo.query_orders(
@@ -153,6 +155,7 @@ def handle_tool(name: str, inputs: dict) -> dict:
             )
 
         if name == "query_shipments":
+            refresh_if_stale(merchant_id, "shiprocket")
             return repo.query_shipments(
                 merchant_id,
                 courier=inputs.get("courier"),
@@ -162,6 +165,7 @@ def handle_tool(name: str, inputs: dict) -> dict:
             )
 
         if name == "query_ad_spends":
+            refresh_if_stale(merchant_id, "meta_ads")
             return repo.query_ad_spends(
                 merchant_id,
                 campaign_name=inputs.get("campaign_name"),
@@ -170,9 +174,12 @@ def handle_tool(name: str, inputs: dict) -> dict:
             )
 
         if name == "compute_metric":
+            sources = _METRIC_SOURCES.get(inputs["metric"], [])
+            refresh_if_stale(merchant_id, *sources)
             return repo.compute_metric(merchant_id, inputs["metric"])
 
         if name == "run_pl_analyzer":
+            refresh_if_stale(merchant_id, "shopify", "shiprocket", "meta_ads")
             from agents.pl_analyzer import PLAnalyzerAgent
             agent = PLAnalyzerAgent()
             log = agent.run(merchant_id, period_days=inputs.get("period_days", 30))
