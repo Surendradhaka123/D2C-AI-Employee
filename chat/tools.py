@@ -135,8 +135,30 @@ TOOL_DEFINITIONS = [
 ]
 
 
+def _coerce(inputs: dict, name: str) -> dict:
+    """Cast inputs to the types declared in the tool schema. Fixes LLMs that return integers as strings."""
+    schema = next((t["input_schema"] for t in TOOL_DEFINITIONS if t["name"] == name), {})
+    props = schema.get("properties", {})
+    coerced = dict(inputs)
+    for field, spec in props.items():
+        if field not in coerced:
+            continue
+        ftype = spec.get("type")
+        try:
+            if ftype == "integer":
+                coerced[field] = int(coerced[field])
+            elif ftype == "number":
+                coerced[field] = float(coerced[field])
+            elif ftype == "boolean" and isinstance(coerced[field], str):
+                coerced[field] = coerced[field].lower() == "true"
+        except (ValueError, TypeError):
+            pass
+    return coerced
+
+
 def handle_tool(name: str, inputs: dict) -> dict:
     """Dispatch a tool call to the appropriate handler. Returns serializable dict."""
+    inputs = _coerce(inputs, name)
     merchant_id = inputs.get("merchant_id", "")
 
     with get_session() as session:
